@@ -46,11 +46,21 @@ def pylist_to_pairs(lst):
         if is_primitive(lst):
             return eval_primitive(lst)
         else:
-            return Symbol.make(lst)
+            return make_symbol(lst)
     elif len(lst) == 0:
         return []
     else:
         return [pylist_to_pairs(lst[0]), pylist_to_pairs(lst[1:])]
+
+def map_recursively(lst, func):
+    if not isinstance(lst, list):
+        return func(lst)
+    elif lst == []:
+        return lst
+    else:
+        result = [map_recursively(lst[0], func)]
+        result.extend(map_recursively(lst[1:], func))
+        return result
 
 # Predicators
 
@@ -110,7 +120,7 @@ def is_cond(exp):
 # Primitive functions
 
 def display(args):
-    sys.stdout.write(str(args[0]))
+    sys.stdout.write(str(map_recursively(args[0], str)))
 
 def add(args):
     return reduce(lambda x,y:x+y, args, 0)
@@ -125,24 +135,24 @@ def div(args):
     return reduce(lambda x,y:x/y, args)
 
 def lt(args):
-    return Boolean.make(args[0] < args[1])
+    return make_boolean(args[0] < args[1])
 
 def gt(args):
-    return Boolean.make(args[0] > args[1])
+    return make_boolean(args[0] > args[1])
 
 def le(args):
-    return Boolean.make(args[0] <= args[1])
+    return make_boolean(args[0] <= args[1])
 
 def ge(args):
-    return Boolean.make(args[0] >= args[1])
+    return make_boolean(args[0] >= args[1])
 
 def eq(args):
-    return Boolean.make(args[0] == args[1])
+    return make_boolean(args[0] == args[1])
 
 def eq_question_mark(args):
     if (args[0] == [] and args[1] == []):
-        return Boolean.make(True)
-    return Boolean.make(args[0] is args[1])
+        return make_boolean(True)
+    return make_boolean(args[0] is args[1])
 
 def cons(args):
     return [args[0], args[1]]
@@ -186,43 +196,22 @@ class PrimitiveFunction(object):
 
 class Symbol(object):
 
-    __table = {}
-
     def __init__(self, name):
         self.__name = name
 
     def __str__(self):
         return self.__name
 
-    @classmethod
-    def make(cls, name):
-        if not name in cls.__table:
-            cls.__table[name] = cls(name)
-        return cls.__table[name]
+def make_symbol(name, symbol_table={}):
+    if not name in symbol_table:
+        symbol_table[name] = Symbol(name)
+    return symbol_table[name]
 
-class Boolean(object):
-
-    __table = {}
-
-    def __init__(self, is_true):
-        if is_true:
-            self.__str = '#t'
-        else:
-            self.__str = '#f'
-
-    def __str__(self):
-        return self.__str
-
-    @classmethod
-    def make(cls, is_true):
-        if is_true:
-            if '#t' not in cls.__table:
-                cls.__table['#t'] = Boolean(is_true)
-            return cls.__table['#t']
-        else:
-            if '#f' not in cls.__table:
-                cls.__table['#f'] = Boolean(is_true)
-            return cls.__table['#f']
+def make_boolean(is_true):
+    if is_true:
+        return make_symbol('#t')
+    else:
+        return make_symbol('#f')
 
 # Metacircular evaluator
 
@@ -269,12 +258,12 @@ def eval_if(exp, env):
     condition = evaluate(exp[1], env)
     # type 1 : (if cond exp1 exp2)
     if len(exp) == 4:
-        if condition is Boolean.make(True):
+        if condition is make_boolean(True):
             return evaluate(exp[2], env)
         else:
             return evaluate(exp[3], env)
     elif len(exp) == 3:
-        if condition is Boolean.make(True):
+        if condition is make_boolean(True):
             return evaluate(exp[2], env)
 
 def eval_cond(exp, env):
@@ -282,7 +271,7 @@ def eval_cond(exp, env):
     for c in clauses:
         if c[0] != 'else':
             cond = evaluate(c[0], env)
-            if cond is Boolean.make(True):
+            if cond is make_boolean(True):
                 return evaluate(c[1], env)
         else:
             return evaluate(c[1], env)
@@ -348,8 +337,8 @@ def make_base():
     env['eq?'] = PrimitiveFunction(eq_question_mark)
 
     # Constants
-    env['#f'] = Boolean.make(False)
-    env['#t'] = Boolean.make(True)
+    env['#f'] = make_boolean(False)
+    env['#t'] = make_boolean(True)
 
     return env
 

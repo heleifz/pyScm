@@ -109,9 +109,9 @@ class TestSymbol(unittest.TestCase):
         self.assertEqual('hello', str(s))
 
     def test_unique(self):
-        s1 = pyscm.Symbol.make('foo')
-        s2 = pyscm.Symbol.make('foo')
-        s3 = pyscm.Symbol.make('bar')
+        s1 = pyscm.make_symbol('foo')
+        s2 = pyscm.make_symbol('foo')
+        s3 = pyscm.make_symbol('bar')
         self.assertTrue(s1 is s2)
         self.assertFalse(s1 is s3)
         self.assertFalse(s2 is s3)
@@ -119,16 +119,16 @@ class TestSymbol(unittest.TestCase):
 class TestBoolean(unittest.TestCase):
 
     def test_str(self):
-        s = pyscm.Boolean(True)
+        s = pyscm.make_boolean(True)
         self.assertEqual('#t', str(s))
-        s = pyscm.Boolean(False)
+        s = pyscm.make_boolean(False)
         self.assertEqual('#f', str(s))
 
     def test_unique(self):
-        s1 = pyscm.Boolean.make(True)
-        s2 = pyscm.Boolean.make(2 > 1)
-        s3 = pyscm.Boolean.make(False)
-        s4 = pyscm.Boolean.make(len('hello') == 1)
+        s1 = pyscm.make_boolean(True)
+        s2 = pyscm.make_boolean(2 > 1)
+        s3 = pyscm.make_boolean(False)
+        s4 = pyscm.make_boolean(len('hello') == 1)
         self.assertTrue(s1 is s2)
         self.assertTrue(s3 is s4)
         self.assertFalse(s1 is s3)
@@ -149,8 +149,8 @@ class TestPrimitiveFunction(unittest.TestCase):
         self.assertEqual(1, pyscm.div([4, 2, 2]))
 
     def test_compare(self):
-        t = pyscm.Boolean.make(True)
-        f = pyscm.Boolean.make(False)
+        t = pyscm.make_boolean(True)
+        f = pyscm.make_boolean(False)
         self.assertTrue(t is pyscm.lt([2, 4]))
         self.assertTrue(f is pyscm.lt([4, 2]))
         self.assertTrue(t is pyscm.le([2, 4]))
@@ -161,17 +161,17 @@ class TestPrimitiveFunction(unittest.TestCase):
         self.assertTrue(t is pyscm.gt([3, 1]))
 
     def test_equal(self):
-        t = pyscm.Boolean.make(True)
-        f = pyscm.Boolean.make(False)
+        t = pyscm.make_boolean(True)
+        f = pyscm.make_boolean(False)
         self.assertTrue(t is pyscm.eq([2, 2]))
         self.assertTrue(t is pyscm.eq_question_mark([2, 2]))
         self.assertTrue(f is pyscm.eq_question_mark([2, 2.0]))
         self.assertTrue(t is pyscm.eq([2, 2.0]))
         self.assertTrue(t is pyscm.eq_question_mark([t,\
-            pyscm.Boolean.make(True)]))
+            pyscm.make_boolean(True)]))
         self.assertTrue(t is pyscm.eq_question_mark([
-                pyscm.Symbol.make('foo'),
-                pyscm.Symbol.make('foo')
+                pyscm.make_symbol('foo'),
+                pyscm.make_symbol('foo')
             ]))
 
         self.assertTrue(t is pyscm.eq_question_mark([
@@ -248,8 +248,8 @@ class TestEvaludator(unittest.TestCase):
         self.assertEqual(env, l.get_parent_env())
 
     def test_if(self):
-        t = pyscm.Boolean.make(True) 
-        f = pyscm.Boolean.make(False) 
+        t = pyscm.make_boolean(True) 
+        f = pyscm.make_boolean(False) 
         ast = pyscm.parse('(if (> 2 1) 9 10)')[1]
         self.assertEqual(9, pyscm.evaluate(ast, pyscm.make_base()))
         ast = pyscm.parse('(if (> 1 2) 9 10)')[1]
@@ -260,8 +260,8 @@ class TestEvaludator(unittest.TestCase):
         self.assertEqual(10, pyscm.evaluate(ast, pyscm.make_base()))
 
     def test_cond(self):
-        t = pyscm.Boolean.make(True) 
-        f = pyscm.Boolean.make(False) 
+        t = pyscm.make_boolean(True) 
+        f = pyscm.make_boolean(False) 
         code = """
         (define (f x)
             (cond
