@@ -35,6 +35,7 @@ class TestParse(unittest.TestCase):
         self.assertEqual(['begin', ['quote', ['1', '2']]], pyscm.parse("'(1 2)"))
         self.assertEqual(['begin', ['quote', ['define', 'a', '1']]],
             pyscm.parse("'(define a 1)"))
+        self.assertEqual(['begin', ['quote', 'a']], pyscm.parse("'a"))
 
     def test_data_type(self):
         self.assertEqual(['begin', ['"hello"', '"world"', '#f', '#t', '1e4']],
@@ -101,6 +102,91 @@ class TestLambda(unittest.TestCase):
         self.assertEqual([['+', 'a', 'b']], l.get_body())
         self.assertEqual({}, l.get_parent_env())
 
+class TestSymbol(unittest.TestCase):
+
+    def test_str(self):
+        s = pyscm.Symbol('hello')
+        self.assertEqual('hello', str(s))
+
+    def test_unique(self):
+        s1 = pyscm.Symbol.make('foo')
+        s2 = pyscm.Symbol.make('foo')
+        s3 = pyscm.Symbol.make('bar')
+        self.assertTrue(s1 is s2)
+        self.assertFalse(s1 is s3)
+        self.assertFalse(s2 is s3)
+
+class TestBoolean(unittest.TestCase):
+
+    def test_str(self):
+        s = pyscm.Boolean(True)
+        self.assertEqual('#t', str(s))
+        s = pyscm.Boolean(False)
+        self.assertEqual('#f', str(s))
+
+    def test_unique(self):
+        s1 = pyscm.Boolean.make(True)
+        s2 = pyscm.Boolean.make(2 > 1)
+        s3 = pyscm.Boolean.make(False)
+        s4 = pyscm.Boolean.make(len('hello') == 1)
+        self.assertTrue(s1 is s2)
+        self.assertTrue(s3 is s4)
+        self.assertFalse(s1 is s3)
+        self.assertFalse(s2 is s4)
+
+class TestPrimitiveFunction(unittest.TestCase):
+
+    def test_arithmetic(self):
+        self.assertEqual(4, pyscm.add([1, 2, 1]))
+        self.assertEqual(0, pyscm.add([]))
+        self.assertEqual(3, pyscm.add([1, 2]))
+        self.assertEqual(1, pyscm.sub([2, 1]))
+        self.assertEqual(-1, pyscm.sub([2, 1, 2]))
+        self.assertEqual(0, pyscm.sub([0]))
+        self.assertEqual(0, pyscm.mul([0, 1]))
+        self.assertEqual(27, pyscm.mul([3, 3, 3]))
+        self.assertEqual(2, pyscm.div([4, 2]))
+        self.assertEqual(1, pyscm.div([4, 2, 2]))
+
+    def test_compare(self):
+        t = pyscm.Boolean.make(True)
+        f = pyscm.Boolean.make(False)
+        self.assertTrue(t is pyscm.lt([2, 4]))
+        self.assertTrue(f is pyscm.lt([4, 2]))
+        self.assertTrue(t is pyscm.le([2, 4]))
+        self.assertTrue(t is pyscm.le([2, 2]))
+        self.assertTrue(t is pyscm.ge([2, 2]))
+        self.assertTrue(t is pyscm.ge([4, 2]))
+        self.assertTrue(f is pyscm.ge([2, 4]))
+        self.assertTrue(t is pyscm.gt([3, 1]))
+
+    def test_equal(self):
+        t = pyscm.Boolean.make(True)
+        f = pyscm.Boolean.make(False)
+        self.assertTrue(t is pyscm.eq([2, 2]))
+        self.assertTrue(t is pyscm.eq_question_mark([2, 2]))
+        self.assertTrue(f is pyscm.eq_question_mark([2, 2.0]))
+        self.assertTrue(t is pyscm.eq([2, 2.0]))
+        self.assertTrue(t is pyscm.eq_question_mark([t,\
+            pyscm.Boolean.make(True)]))
+        self.assertTrue(t is pyscm.eq_question_mark([
+                pyscm.Symbol.make('foo'),
+                pyscm.Symbol.make('foo')
+            ]))
+
+        self.assertTrue(t is pyscm.eq_question_mark([
+                pyscm.evaluate(['quote', []], {}),
+                pyscm.evaluate(['quote', []], {})
+            ]))
+
+class TestSugar(unittest.TestCase):
+
+    def test_let_to_lambda(self):
+        ast = pyscm.parse('(let ((x 3) (y 4)) (+ x y))')[1]
+        self.assertEqual(
+            [['lambda', ['x', 'y'], ['+', 'x', 'y']], '3', '4'],
+            pyscm.let_to_lambda(ast)
+        )
 
 class TestEvaludator(unittest.TestCase):
 
@@ -135,6 +221,18 @@ class TestEvaludator(unittest.TestCase):
         self.assertEqual([['+', 'p1', 'p2']], l.get_body())
         self.assertEqual(env, l.get_parent_env())
 
+    def test_set(self):
+        env = {}
+        pyscm.evaluate(['define', 'a', '3'], env)
+        self.assertEqual(3, env['a'])
+        pyscm.evaluate(['set!', 'a', '4'], env)
+        self.assertEqual(4, env['a'])
+        env = {}
+        pyscm.evaluate(['define', 'a', '3'], env)
+        pyscm.evaluate(['define', ['f', 'x'], ['set!', 'a', 'x']], env)
+        pyscm.evaluate(['f', '9'], env)
+        self.assertEqual(9, env['a'])
+
     def test_sequence(self):
         env = {}
         pyscm.evaluate(['begin', ['define', 'a', '3'],
@@ -149,14 +247,66 @@ class TestEvaludator(unittest.TestCase):
         self.assertEqual([['+', 'p1', 'p2']], l.get_body())
         self.assertEqual(env, l.get_parent_env())
 
-    def test_apply(self):
+    def test_if(self):
+        t = pyscm.Boolean.make(True) 
+        f = pyscm.Boolean.make(False) 
+        ast = pyscm.parse('(if (> 2 1) 9 10)')[1]
+        self.assertEqual(9, pyscm.evaluate(ast, pyscm.make_base()))
+        ast = pyscm.parse('(if (> 1 2) 9 10)')[1]
+        self.assertEqual(10, pyscm.evaluate(ast, pyscm.make_base()))
+        ast = pyscm.parse('(if (> 2 3) 10)')[1]
+        self.assertEqual(None, pyscm.evaluate(ast, pyscm.make_base()))
+        ast = pyscm.parse('(if (< 2 3) 10)')[1]
+        self.assertEqual(10, pyscm.evaluate(ast, pyscm.make_base()))
+
+    def test_cond(self):
+        t = pyscm.Boolean.make(True) 
+        f = pyscm.Boolean.make(False) 
         code = """
-        (define accu '(1 2 3))
-        (define x (cons 1 accu))
-        (display (+ (car (cdr x)) 3))
+        (define (f x)
+            (cond
+                ((< x 3) 1)
+                ((< x 5) 44)
+                (else 99)
+                )) 
+        (define a (f 2))
+        (define b (f 4))
+        (define c (f 33))
         """
         ast = pyscm.parse(code)
-        pyscm.evaluate(ast, pyscm.make_base())
+        base = pyscm.make_base()
+        pyscm.evaluate(ast, base)
+        self.assertEqual(1, base['a'])
+        self.assertEqual(44, base['b'])
+        self.assertEqual(99, base['c'])
+
+    def test_apply(self):
+        code = """
+        (define (sum lst)
+            (if (eq? lst '())
+                0
+                (+ (car lst) (sum (cdr lst)))))
+        (define (map f lst)
+            (if (eq? lst '())
+                '()
+                (cons (f (car lst)) (map f (cdr lst)))))
+        (sum (map car '((1 2 3) (4 5 6))))
+        """
+        ast = pyscm.parse(code)
+        self.assertEqual(5, pyscm.evaluate(ast, pyscm.make_base()))
+        code = """
+        ((lambda (x y) (+ x y)) 1 9)
+        """
+        ast = pyscm.parse(code)
+        self.assertEqual(10, pyscm.evaluate(ast, pyscm.make_base()))
+        code = """
+        (define (func x y)
+            (let ((z 3) (w 7))
+                (+ x w y z)))
+        (func 9 9)
+        """
+        ast = pyscm.parse(code)
+        self.assertEqual(28, pyscm.evaluate(ast, pyscm.make_base()))
 
 
 if __name__ == '__main__':
