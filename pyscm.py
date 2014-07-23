@@ -175,11 +175,6 @@ class Lambda(object):
     def make(lst, env):
         return Lambda(lst[1], lst[2:], env)
 
-    def apply(self, args):
-        env = dict(zip(self.__paras, args))
-        env['**parent**'] = self.__parent_env
-        return eval_sequence(self.__body, env)
-
     def get_paras(self):
         return self.__paras 
     def get_body(self):
@@ -254,29 +249,7 @@ def eval_sequence(exp, env):
         result = evaluate(e, env)
     return result
 
-def eval_if(exp, env):
-    condition = evaluate(exp[1], env)
-    # type 1 : (if cond exp1 exp2)
-    if len(exp) == 4:
-        if condition is make_boolean(True):
-            return evaluate(exp[2], env)
-        else:
-            return evaluate(exp[3], env)
-    elif len(exp) == 3:
-        if condition is make_boolean(True):
-            return evaluate(exp[2], env)
-
-def eval_cond(exp, env):
-    clauses = exp[1:]
-    for c in clauses:
-        if c[0] != 'else':
-            cond = evaluate(c[0], env)
-            if cond is make_boolean(True):
-                return evaluate(c[1], env)
-        else:
-            return evaluate(c[1], env)
-
-# Expanding syntax sugars
+# Expand derived structure
 
 def let_to_lambda(exp):
     bindings = zip(*exp[1])
@@ -289,31 +262,65 @@ def let_to_lambda(exp):
 
 def evaluate(exp, env):
     """Evaluate parsed Scheme list in an environment"""
-    if is_primitive(exp):
-        return eval_primitive(exp)
-    elif is_variable(exp):
-        return eval_variable(exp, env)
-    elif is_quote(exp):
-        return eval_quote(exp)
-    elif is_lambda(exp):
-        return Lambda.make(exp, env)
-    elif is_definition(exp):
-        return eval_definition(exp, env)
-    elif is_set(exp):
-        return eval_set(exp, env, env)
-    elif is_sequence(exp):
-        return eval_sequence(exp[1:], env)
-    elif is_if(exp):
-        return eval_if(exp, env)
-    elif is_cond(exp):
-        return eval_cond(exp, env)
-    elif is_let(exp):
-        return evaluate(let_to_lambda(exp), env)
-    # must be the last clause
-    elif is_application(exp):
-        return eval_application(exp, env)
-    else:
-        pass
+    while True:
+        if is_primitive(exp):
+            return eval_primitive(exp)
+        elif is_variable(exp):
+            return eval_variable(exp, env)
+        elif is_quote(exp):
+            return eval_quote(exp)
+        elif is_lambda(exp):
+            return Lambda.make(exp, env)
+        elif is_definition(exp):
+            return eval_definition(exp, env)
+        elif is_set(exp):
+            return eval_set(exp, env, env)
+        elif is_sequence(exp):
+            eval_sequence(exp[1:-1], env)
+            exp = exp[-1]
+        elif is_if(exp):
+            condition = evaluate(exp[1], env)
+            # type 1 : (if cond exp1 exp2)
+            if len(exp) == 4:
+                if condition is make_boolean(True):
+                    exp = exp[2]
+                else:
+                    exp = exp[3]
+            elif len(exp) == 3:
+                if condition is make_boolean(True):
+                    exp = exp[2]
+                else:
+                    return None
+        elif is_cond(exp):
+            clauses = exp[1:]
+            for c in clauses:
+                if c[0] != 'else':
+                    cond = evaluate(c[0], env)
+                    if cond is make_boolean(True):
+                        exp = c[1]
+                        break
+                else:
+                    exp = c[1]
+                    break
+            else:
+                return None
+        elif is_let(exp):
+            exp = let_to_lambda(exp)
+        # must be the last clause
+        elif is_application(exp):
+            args = [evaluate(arg, env) for arg in exp]
+            proc = args[0]
+            args = args[1:]
+            if isinstance(proc, PrimitiveFunction):
+                return proc.apply(args)
+            elif isinstance(proc, Lambda):
+                new_env = dict(zip(proc.get_paras(), args))
+                new_env['**parent**'] = proc.get_parent_env()
+                env = new_env
+                exp = proc.get_body()[:]
+                exp.insert(0, 'begin')
+        else:
+            return
 
 # Make base Environment
 
@@ -346,4 +353,4 @@ def run(code, env):
     return evaluate(parse(code), env)
 
 if __name__ == "__main__":
-    pass 
+    pass

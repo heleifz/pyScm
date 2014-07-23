@@ -308,6 +308,16 @@ class TestEvaludator(unittest.TestCase):
         ast = pyscm.parse(code)
         self.assertEqual(28, pyscm.evaluate(ast, pyscm.make_base()))
 
+    def test_tail(self):
+        code = """
+        (define (sum2 n acc)
+            (if (= n 0)
+            acc
+            (sum2 (- n 1) (+ n acc))))
+        (sum2 1000 0)
+        """
+        self.assertEqual(500500, pyscm.run(code, pyscm.make_base()))
+
 
 if __name__ == '__main__':
     unittest.main()
